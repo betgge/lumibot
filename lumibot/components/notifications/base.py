@@ -46,6 +46,23 @@ class NotificationManager:
         self.providers.append(provider)
         return provider
 
+    def configure_kakao(
+        self,
+        *,
+        rest_api_key: str | None = None,
+        client_secret: str | None = None,
+        token_file: str | None = None,
+    ) -> Any:
+        from .kakao import KakaoNotificationProvider
+
+        provider = KakaoNotificationProvider(
+            rest_api_key=rest_api_key,
+            client_secret=client_secret,
+            token_file=token_file,
+        )
+        self.providers.append(provider)
+        return provider
+
     def configure_resend(
         self,
         *,

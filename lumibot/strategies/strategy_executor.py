@@ -1636,6 +1636,7 @@ class StrategyExecutor(Thread):
     def _after_market_closes(self):
         self.strategy.logger.debug("Executing the after_market_closes lifecycle method")
         self.strategy.after_market_closes()
+        self._notify_kakao("on_market_close")
 
     @lifecycle_method
     @trace_stats
@@ -1727,9 +1728,34 @@ class StrategyExecutor(Thread):
     def _on_new_order(self, order):
         self.strategy.on_new_order(order)
 
+    # ------------------------------------------------------------------
+    # KakaoTalk trade alerts (enabled with KAKAO_TRADE_ALERTS=true in .env)
+    # ------------------------------------------------------------------
+    def _kakao_trade_alerts(self):
+        if not getattr(self, "_kakao_alerts_loaded", False):
+            self._kakao_alerts_loaded = True
+            self._kakao_alerts = None
+            try:
+                from lumibot.components.notifications.kakao import KakaoTradeAlerts
+
+                self._kakao_alerts = KakaoTradeAlerts.from_env(self.strategy)
+            except Exception as exc:  # never let alerts break trading
+                self.strategy.logger.warning(f"Kakao trade alerts disabled: {exc}")
+        return self._kakao_alerts
+
+    def _notify_kakao(self, event, *args, **kwargs):
+        alerts = self._kakao_trade_alerts()
+        if alerts is None:
+            return
+        try:
+            getattr(alerts, event)(*args, **kwargs)
+        except Exception as exc:  # never let alerts break trading
+            self.strategy.logger.warning(f"Kakao trade alert failed ({event}): {exc}")
+
     @event_method
     def _on_canceled_order(self, order):
         self.strategy.on_canceled_order(order)
+        self._notify_kakao("on_cancel", order)
 
     @event_method
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
@@ -1747,6 +1773,7 @@ class StrategyExecutor(Thread):
         if not belongs:
             return
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
+        self._notify_kakao("on_fill", position, order, price, quantity, multiplier, partial=True)
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
@@ -1773,6 +1800,7 @@ class StrategyExecutor(Thread):
             return
 
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
+        self._notify_kakao("on_fill", position, order, price, quantity, multiplier)
 
         # PERF: In backtesting we never send Discord notifications (`Strategy.send_discord_message`
         # hard-returns), but building the formatted message is still non-trivial work and can
