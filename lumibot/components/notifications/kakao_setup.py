@@ -10,6 +10,7 @@ sends a test message. The user only clicks "동의" in the browser.
 from __future__ import annotations
 
 import os
+import re
 import secrets
 import sys
 import threading
@@ -21,7 +22,7 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
 
-from .kakao import TOKEN_URL, KakaoNotificationProvider
+from .kakao import TOKEN_URL, KakaoNotificationProvider, check_key, key_format_warning
 
 # [상수] 로그인 주소, 기본 리다이렉트 URI, 설명서 파일 위치, 안내에 쓰는 명령 이름.
 AUTHORIZE_URL = "https://kauth.kakao.com/oauth/authorize"
@@ -37,9 +38,14 @@ ERROR_HINTS = {
               "'{redirect_uri}' 를 글자 하나까지 똑같이 등록하세요.",
     "KOE010": "REST API 키 또는 클라이언트 시크릿이 틀렸습니다. .env 의 KAKAO_REST_API_KEY, "
               "KAKAO_CLIENT_SECRET 을 다시 확인하세요.",
-    "KOE101": "REST API 키가 잘못되었습니다. .env 의 KAKAO_REST_API_KEY 를 확인하세요.",
+    "KOE101": "REST API 키가 잘못되었습니다. .env 의 KAKAO_REST_API_KEY 에 콘솔 [앱] → [플랫폼 키] → "
+              "[REST API 키]의 값을 그대로 넣으세요 (예시 글자·따옴표·띄어쓰기 없이).",
     "KOE303": "토큰 요청의 리다이렉트 URI 가 로그인 때와 다릅니다. KAKAO_REDIRECT_URI 를 확인하세요.",
     "KOE320": "인가 코드가 만료되었거나 이미 사용되었습니다. '" + LOGIN_COMMAND + "' 를 다시 실행하세요.",
+    "KOE322": "로그인이 만료되었습니다 (약 2달). '" + LOGIN_COMMAND + "' 를 다시 실행하세요.",
+    "-401": "토큰이 만료되었거나 잘못되었습니다. '" + LOGIN_COMMAND + "' 를 다시 실행하세요.",
+    "-402": "카카오톡 메시지 전송 권한이 없습니다. 콘솔 [카카오 로그인] → [동의항목]에서 '카카오톡 메시지 전송'을 "
+            "켠 뒤 '" + LOGIN_COMMAND + "' 를 다시 실행하세요.",
 }
 
 
@@ -83,6 +89,30 @@ def explain_error(error_code: str | None, redirect_uri: str = DEFAULT_REDIRECT_U
     if hint:
         return f"[{error_code}] " + hint.format(redirect_uri=redirect_uri)
     return fallback or f"카카오 오류: {error_code}"
+
+
+# 전송 실패 이유(영어)에서 에러 코드를 찾아 한국어 해결 방법으로 바꾼다. 모르는 이유면 빈 문자열.
+def explain_reason(reason: str | None, redirect_uri: str = DEFAULT_REDIRECT_URI) -> str:
+    reason = reason or ""
+    match = re.search(r"KOE\d{3}", reason)
+    if match and match.group(0) in ERROR_HINTS:
+        return explain_error(match.group(0), redirect_uri)
+    if "insufficient scopes" in reason or "status 403" in reason:
+        return explain_error("-402", redirect_uri)
+    if "status 401" in reason:
+        return explain_error("-401", redirect_uri)
+    if "refresh failed" in reason or "refresh_token is missing" in reason:
+        return f"토큰을 새로 받지 못했습니다. '{LOGIN_COMMAND}' 를 다시 실행하세요."
+    if "request failed" in reason:
+        return "카카오 서버에 연결하지 못했습니다. 인터넷 연결을 확인하세요."
+    return ""
+
+
+# .env 의 키를 검사해 문제 문장 목록(막아야 하는 것)과 경고 문장을 돌려준다.
+def _key_problems(rest_api_key: str, client_secret: str) -> tuple[list[str], str | None]:
+    problems = [p for p in (check_key("KAKAO_REST_API_KEY", rest_api_key),
+                            check_key("KAKAO_CLIENT_SECRET", client_secret)) if p]
+    return problems, (None if problems else key_format_warning(rest_api_key))
 
 
 # http://localhost 주소일 때만 내 컴퓨터에 작은 서버를 띄워 code 를 자동으로 받을 수 있다.
@@ -225,7 +255,16 @@ def cmd_login(
         out(f"  설정 안내 보기:  {GUIDE_COMMAND}")
         out(f"  리다이렉트 URI 로 등록할 주소:  {redirect_uri}")
         return 1
+    # 키에 예시 글자(한글)가 남아 있으면 카카오가 무조건 거절하므로 여기서 멈춘다.
+    problems, warning = _key_problems(rest_api_key, client_secret)
+    if problems:
+        out("[1/4] REST API 키 확인 ............ ✗ 키가 이상함\n")
+        for problem in problems:
+            out(f"  {problem}")
+        return 1
     out("[1/4] REST API 키 확인 ............ ✓")
+    if warning:
+        out(f"      ⚠ {warning}")
 
     # 2) 로그인 주소 만들기. state = 내가 보낸 요청이 맞는지 확인하는 무작위 값.
     state = secrets.token_urlsafe(16)
@@ -305,6 +344,9 @@ def cmd_login(
     )
     if not result.ok:
         out(f"[4/4] 테스트 메시지 ............ ✗  {result.reason}")
+        hint = explain_reason(result.reason, redirect_uri)
+        if hint:
+            out(f"  해결 방법: {hint}")
         return 1
     out("[4/4] 테스트 메시지 전송 ............ ✓  카카오톡 '나와의 채팅'을 확인하세요.\n")
     out("완료! .env 에 KAKAO_TRADE_ALERTS=true 를 넣고 전략을 실행하면 체결 알림이 시작됩니다.")
@@ -312,9 +354,18 @@ def cmd_login(
     return 0
 
 
+# test 순서: 키 검사 → 토큰 확인 → 테스트 메시지 → 실패하면 한국어 해결 방법.
 def cmd_test(out: Callable[[str], None] = print, session: Any = None) -> int:
     _load_dotenv()
     provider = KakaoNotificationProvider(session=session)
+    problems, warning = _key_problems(provider.rest_api_key, provider.client_secret)
+    if problems:
+        out("전송 전에 멈췄습니다: .env 의 키가 이상합니다.")
+        for problem in problems:
+            out(f"  {problem}")
+        return 1
+    if warning:
+        out(f"⚠ {warning}")
     if not provider.is_configured():
         out(f"토큰이 없습니다. 먼저 실행하세요: {LOGIN_COMMAND}")
         return 1
@@ -323,6 +374,9 @@ def cmd_test(out: Callable[[str], None] = print, session: Any = None) -> int:
         out("전송 성공. 카카오톡 '나와의 채팅'을 확인하세요.")
         return 0
     out(f"전송 실패: {result.reason}")
+    hint = explain_reason(result.reason, get_redirect_uri())
+    if hint:
+        out(f"해결 방법: {hint}")
     return 1
 
 

@@ -234,3 +234,63 @@ def test_cli_has_kakao_command():
 
     args = build_parser().parse_args(["kakao", "login", "--manual"])
     assert args.action == "login" and args.manual is True
+
+
+# [4] 키 검사와 한국어 원인 안내 (예시 글자를 그대로 둔 실수, 알 수 없는 KOE 코드)
+# ------------------------------------------------------------------- key checks & hints
+def test_check_key_catches_placeholder_text():
+    from lumibot.components.notifications.kakao import check_key, key_format_warning
+
+    assert "예시 글자" in check_key("KAKAO_REST_API_KEY", "복사한_REST_API_키")
+    assert check_key("KAKAO_REST_API_KEY", "ab cd") is not None
+    assert check_key("KAKAO_REST_API_KEY", "0123456789abcdef0123456789abcdef") is None
+    assert key_format_warning("0123456789abcdef0123456789abcdef") is None
+    assert "32자" in key_format_warning("short-key")
+
+
+def test_explain_reason_turns_codes_into_korean():
+    from lumibot.components.notifications.kakao_setup import explain_reason
+
+    assert "KAKAO_REST_API_KEY" in explain_reason("kakao request failed: Kakao token refresh failed: KOE101")
+    assert "동의항목" in explain_reason("kakao send failed with status 403: insufficient scopes.")
+    assert "lumibot kakao login" in explain_reason("Kakao token refresh failed: 400")
+    assert "인터넷" in explain_reason("kakao request failed: ConnectionError")
+    assert explain_reason("something else") == ""
+
+
+def test_cmd_test_stops_when_key_is_placeholder(monkeypatch, tmp_path):
+    _setup_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "복사한_REST_API_키")
+    session = _FakeSession()
+    lines = []
+    assert kakao_setup.cmd_test(out=lines.append, session=session) == 1
+    assert "예시 글자" in "\n".join(lines)
+    assert session.calls == []  # 카카오에 요청조차 보내지 않는다
+
+
+def test_cmd_test_explains_koe101(monkeypatch, tmp_path):
+    _setup_env(monkeypatch, tmp_path)
+    (tmp_path / "kakao_token.json").write_text(json.dumps({"access_token": "old", "refresh_token": "RT"}))
+    session = _FakeSession(_Response(401, {"code": -401}), _Response(401, {"error_code": "KOE101"}))
+    lines = []
+    assert kakao_setup.cmd_test(out=lines.append, session=session) == 1
+    text = "\n".join(lines)
+    assert "해결 방법" in text and "KOE101" in text
+
+
+def test_login_stops_when_key_is_placeholder(monkeypatch, tmp_path):
+    _setup_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "복사한_REST_API_키")
+    lines = []
+    assert cmd_login(open_browser=False, out=lines.append) == 1
+    assert "키가 이상함" in "\n".join(lines)
+
+
+def test_trade_alerts_warn_when_key_is_placeholder(monkeypatch, tmp_path):
+    monkeypatch.setenv("KAKAO_TRADE_ALERTS", "true")
+    monkeypatch.setenv("KAKAO_REST_API_KEY", "복사한_REST_API_키")
+    monkeypatch.setenv("KAKAO_TOKEN_FILE", str(tmp_path / "none.json"))
+    warnings = []
+    strategy = SimpleNamespace(is_backtesting=False, logger=SimpleNamespace(warning=warnings.append))
+    KakaoTradeAlerts.from_env(strategy)
+    assert warnings and "예시 글자" in warnings[0]

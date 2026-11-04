@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -62,6 +63,29 @@ def _env_int(name: str, default: int) -> int:
         return int(os.environ.get(name, "").strip())
     except ValueError:
         return default
+
+
+# [키 검사] .env 에 넣은 키가 이상하면 고칠 방법을 한국어로 돌려준다. 괜찮으면 None.
+# check_key: 한글·띄어쓰기가 있으면 설명서 예시 글자를 그대로 둔 것이라 카카오가 무조건 거절한다 (막아야 함).
+# key_format_warning: REST API 키는 보통 영문·숫자 32자라서, 다르면 다른 종류의 키를 넣었을 수 있다 (경고만).
+def check_key(name: str, value: str | None) -> str | None:
+    value = (value or "").strip()
+    if value and any(ord(ch) > 127 or ch.isspace() for ch in value):
+        return (
+            f"{name} 에 한글이나 띄어쓰기가 들어 있습니다. 설명서의 예시 글자가 그대로 남은 것 같아요. "
+            "카카오 콘솔 [앱] → [플랫폼 키] → [REST API 키] 에서 진짜 값을 복사해 넣으세요."
+        )
+    return None
+
+
+def key_format_warning(rest_api_key: str | None) -> str | None:
+    value = (rest_api_key or "").strip()
+    if value and not re.fullmatch(r"[0-9a-fA-F]{32}", value):
+        return (
+            f"REST API 키는 보통 영문·숫자 32자인데 지금은 {len(value)}자입니다. "
+            "JavaScript 키나 어드민 키가 아니라 'REST API 키'를 넣었는지 확인하세요."
+        )
+    return None
 
 
 # [메시지 문구 만들기] 카카오와 상관없이 글자만 다루는 함수들 (인터넷 없이 테스트할 수 있게 분리).
@@ -324,6 +348,11 @@ class KakaoTradeAlerts:
         """Return what is missing for alerts to work, or None when ready."""
         if not self.provider.rest_api_key:
             return "KAKAO_REST_API_KEY 가 .env 에 없습니다"
+        for name, value in (("KAKAO_REST_API_KEY", self.provider.rest_api_key),
+                            ("KAKAO_CLIENT_SECRET", self.provider.client_secret)):
+            problem = check_key(name, value)
+            if problem:
+                return problem
         if not self.provider.is_configured():
             return "카카오 토큰이 없습니다 (kakao_token.json)"
         return None

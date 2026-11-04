@@ -12,8 +12,9 @@ os.environ.pop("KAKAO_CLIENT_SECRET", None)
 import pandas as pd
 from lumibot.components.notifications import kakao as K
 SENT = []
-class R:
+class R:  # 카카오 성공 응답 흉내
     status_code = 200
+    content = b'{"result_code": 0}'
     def json(self): return {"result_code": 0}
 def fake_post(self, text, access_token): SENT.append(text); return R()
 K.KakaoNotificationProvider._post_message = fake_post
@@ -32,7 +33,7 @@ class Manual(Strategy):
         if price > 101 and not self.sent:                       # 예시 1 형태
             NOTIFY.append(("예시1", self.notify("급락 감지", f"DEMO {price:,.0f}원")))
             self.sent = True
-        if price >= 103 and self.get_position("DEMO"):         # 예시 2 형태
+        if self.step == 2 and self.get_position("DEMO"):       # 예시 2 형태 (2번째 반복에 매도)
             self.sell_all()
             NOTIFY.append(("예시2", self.notify("목표가 도달", f"DEMO {price:,.0f}원")))
         NOTIFY.append(("cash", self.get_cash()))
