@@ -125,6 +125,7 @@ setuptools.setup(
         "lumibot": [
             "resources/conf.yaml",
             "components/agents/skills/*/SKILL.md",
+            "components/notifications/KAKAO_SETUP.md",
             "components/agents/skills/*/agents/*.yaml",
             "components/agents/skills/*/references/*.md",
             "example_strategies/fixtures/*.json",

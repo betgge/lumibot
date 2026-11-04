@@ -190,6 +190,18 @@ Start with paper trading. When you are ready for live trading, use the same stra
 
 For full setup guides, broker tutorials, AI-agent docs, examples, and deployment notes, use the **[Lumibot documentation](https://lumibot.lumiwealth.com/)**.
 
+## KakaoTalk trade alerts (카카오톡 매매 알림)
+
+Get fills, partial fills, cancels and an end-of-day summary in your own KakaoTalk chat.
+No strategy code changes are needed.
+
+```bash
+lumibot kakao guide   # setup steps (Kakao console, .env keys)
+lumibot kakao login   # click "agree" in the browser; tokens and a test message are handled for you
+```
+
+Then set `KAKAO_TRADE_ALERTS=true` in `.env`. Details: [docs/KAKAO_NOTIFICATIONS.md](docs/KAKAO_NOTIFICATIONS.md)
+
 ## Connect your AI assistant
 
 Claude, ChatGPT, Codex, Cursor, VS Code or another MCP-compatible assistant can

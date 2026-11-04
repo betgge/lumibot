@@ -8,22 +8,28 @@
 | 파일 | 역할 |
 |---|---|
 | `lumibot/components/notifications/kakao.py` | `KakaoNotificationProvider`(메시지 전송, 토큰 자동 갱신), `KakaoTradeAlerts`(자동 매매 알림) |
+| `lumibot/components/notifications/kakao_setup.py` | `lumibot kakao guide/login/test` 명령 (설명서 출력, 로그인 자동화) |
+| `lumibot/components/notifications/KAKAO_SETUP.md` | 사용자 설정 안내서 (설치 묶음 포함) |
+| `lumibot/cli.py` | `kakao` 하위 명령 등록 |
 | `lumibot/components/notifications/base.py` | `NotificationManager.configure_kakao()` 추가 |
 | `lumibot/strategies/strategy_executor.py` | 체결·부분 체결·취소·장 마감 이벤트에서 `KakaoTradeAlerts` 호출 (기존 Discord 자동 알림과 같은 위치) |
 | `tests/test_kakao_notification.py` | 가짜 응답(Mock) 단위 테스트 |
 
 ## 준비
 
-1. [Kakao Developers](https://developers.kakao.com)에서 앱을 만들고 다음을 설정한다.
-   - [카카오 로그인] → [사용 설정] ON
-   - [앱] → [플랫폼 키] → [REST API 키] → 카카오 로그인 리다이렉트 URI 등록
-   - [카카오 로그인] → [동의항목] → "카카오톡 메시지 전송(talk_message)" 이용 중 동의
-2. `scope=talk_message`로 로그인해 인가 코드를 받고, 토큰을 발급한다.
-3. 받은 토큰을 실행 폴더의 `kakao_token.json`에 저장한다. (GitHub에 올리지 않는다)
+사용자 설정 안내서는 설치 묶음에 포함된 `lumibot/components/notifications/KAKAO_SETUP.md` 이다.
+터미널에서 바로 볼 수 있다.
 
-```json
-{"access_token": "...", "refresh_token": "..."}
+```bash
+lumibot kakao guide   # 1~2단계: 카카오 콘솔 설정(직접), .env 에 REST API 키 넣기
+lumibot kakao login   # 3단계: 브라우저 동의만 하면 토큰 발급·저장·권한 확인·테스트 메시지 자동
+lumibot kakao test    # 테스트 메시지만 다시 보내기
 ```
+
+`login` 은 `KAKAO_REDIRECT_URI`(기본 `http://localhost:5000/kakao/callback`)로 작은 로컬 서버를 잠깐 열어
+인가 코드를 자동으로 받는다. 서버를 열 수 없거나 https 주소를 쓰면 `--manual` 처럼 주소를 붙여 넣는 방식으로 바뀐다.
+
+알림을 켰는데 키나 토큰이 없으면 전략 시작 시 위 명령을 안내하는 경고가 한 번 나온다. 매매는 계속된다.
 
 ## 설정 (`.env`)
 

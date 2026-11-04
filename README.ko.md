@@ -39,6 +39,19 @@ lumibot demo
 
 AI 예제에는 모델 인증 정보가 필요하며 호출 비용이 발생할 수 있습니다. 모의 또는 실거래에는 브로커 계정과 인증 정보가 필요합니다. [AI 예제](README.md#run-your-first-ai-backtest), [CLI 설정](https://lumibot.lumiwealth.com/cli.html), [실행 모드](https://lumibot.lumiwealth.com/strategy_run_modes.html)를 확인하세요. 백테스트는 미래 성과를 보장하지 않습니다.
 
+## 카카오톡 매매 알림
+
+주문 체결·부분 체결·취소와 장 마감 요약을 내 카카오톡 "나와의 채팅"으로 받을 수 있습니다.
+전략 코드는 고칠 필요 없이 설정만 켜면 됩니다.
+
+```bash
+lumibot kakao guide   # 설정 안내 보기 (카카오 콘솔 설정, .env 키)
+lumibot kakao login   # 브라우저에서 동의만 누르면 토큰 발급·저장·테스트까지 자동
+```
+
+그다음 `.env`에 `KAKAO_TRADE_ALERTS=true`를 넣고 전략을 실행하세요.
+자세한 내용: [docs/KAKAO_NOTIFICATIONS.md](docs/KAKAO_NOTIFICATIONS.md)
+
 ## AI 어시스턴트 연결
 
 Claude, ChatGPT, Codex, Cursor, VS Code 또는 다른 MCP 호환 어시스턴트를 사용할 수 있습니다. 코딩 어시스턴트는 코드 작성과 테스트를 돕고, 전략 내부 에이전트는 실행 중 거래 판단을 합니다.

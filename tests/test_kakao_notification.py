@@ -20,6 +20,7 @@ from lumibot.components.notifications.kakao import (
 )
 
 
+# [가짜 카카오 응답] 진짜 서버 대신 정해 둔 상태 코드와 내용을 돌려준다.
 class _Response:
     def __init__(self, status_code=200, payload=None):
         self.status_code = status_code
@@ -30,6 +31,7 @@ class _Response:
         return self._payload
 
 
+# [가짜 requests] 준비해 둔 응답을 순서대로 돌려주고, 어떤 요청이 왔는지 기록한다.
 class _FakeSession:
     """Returns queued responses in order and records every call."""
 
@@ -42,6 +44,7 @@ class _FakeSession:
         return self.responses.pop(0)
 
 
+# 임시 폴더에 토큰 파일을 만들고 가짜 세션을 넣은 Provider 를 만든다.
 def _provider(tmp_path, session, token=None, **kwargs):
     token_file = tmp_path / "kakao_token.json"
     if token is not None:
@@ -55,6 +58,7 @@ def _provider(tmp_path, session, token=None, **kwargs):
     )
 
 
+# [1] Provider 테스트: 전송 성공, 토큰 만료 시 갱신·재시도, 실패 보고, 토큰 없음 처리
 # --------------------------------------------------------------------- provider
 def test_send_success_uses_access_token(tmp_path):
     session = _FakeSession(_Response(200, {"result_code": 0}))
@@ -158,6 +162,7 @@ def test_notification_manager_can_configure_kakao(tmp_path):
     assert manager.providers == [provider]
 
 
+# [2] 문구 테스트: 200자 자르기, 원/달러 표시, 체결·부분 체결 문구
 # ------------------------------------------------------------------ formatting
 def test_build_text_is_cut_to_kakao_limit():
     text = build_text("제목", "가" * 500)
@@ -188,7 +193,9 @@ def test_partial_fill_title():
     assert title == "[부분 체결] 005930 3주 매도"
 
 
+# [3] 자동 알림 테스트: 스위치, 실전 전송, 백테스트 차단·최대 개수, hide_trades, 취소, 장 마감 요약
 # ---------------------------------------------------------------- trade alerts
+# 보낸 메시지를 기록만 하는 가짜 Provider (카카오에 실제로 보내지 않는다).
 class _RecordingProvider:
     def __init__(self, ok=True):
         self.sent = []
@@ -299,6 +306,7 @@ def test_daily_summary_can_be_turned_off():
     assert provider.sent == []
 
 
+# [4] 엔진 테스트: 카카오에서 에러가 나도 엔진(_notify_kakao)이 멈추지 않는지 확인.
 def test_executor_hook_never_raises():
     from lumibot.strategies.strategy_executor import StrategyExecutor
 

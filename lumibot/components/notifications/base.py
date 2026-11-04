@@ -46,6 +46,7 @@ class NotificationManager:
         self.providers.append(provider)
         return provider
 
+    # [카카오 등록] 텔레그램과 같은 방식으로 카카오 알림 부품을 알림 목록에 추가한다.
     def configure_kakao(
         self,
         *,

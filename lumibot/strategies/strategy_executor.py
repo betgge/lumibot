@@ -1388,6 +1388,7 @@ class StrategyExecutor(Thread):
     def _initialize(self):
         self.strategy.log_message(f"Strategy {self.strategy._name} is initializing", color="green")
         self.strategy.logger.debug("Executing the initialize lifecycle method")
+        self._kakao_trade_alerts()  # 카카오 알림: 시작할 때 미리 준비해서 설정이 빠졌으면 바로 안내
 
         safe_params_to_pass = {}
         if self.strategy.parameters:
@@ -1636,7 +1637,7 @@ class StrategyExecutor(Thread):
     def _after_market_closes(self):
         self.strategy.logger.debug("Executing the after_market_closes lifecycle method")
         self.strategy.after_market_closes()
-        self._notify_kakao("on_market_close")
+        self._notify_kakao("on_market_close")  # 카카오: 장 마감 요약
 
     @lifecycle_method
     @trace_stats
@@ -1731,6 +1732,8 @@ class StrategyExecutor(Thread):
     # ------------------------------------------------------------------
     # KakaoTalk trade alerts (enabled with KAKAO_TRADE_ALERTS=true in .env)
     # ------------------------------------------------------------------
+    # [카카오 알림 연결] .env 에 KAKAO_TRADE_ALERTS=true 면 체결·부분 체결·취소·장 마감 때 카톡을 보낸다.
+    # _kakao_trade_alerts: 처음 한 번만 준비한다 (지연 로딩). _notify_kakao: 알림이 실패해도 매매는 멈추지 않게 감싼다.
     def _kakao_trade_alerts(self):
         if not getattr(self, "_kakao_alerts_loaded", False):
             self._kakao_alerts_loaded = True
@@ -1755,7 +1758,7 @@ class StrategyExecutor(Thread):
     @event_method
     def _on_canceled_order(self, order):
         self.strategy.on_canceled_order(order)
-        self._notify_kakao("on_cancel", order)
+        self._notify_kakao("on_cancel", order)  # 카카오: 취소 알림
 
     @event_method
     def _on_partially_filled_order(self, position, order, price, quantity, multiplier):
@@ -1773,7 +1776,7 @@ class StrategyExecutor(Thread):
         if not belongs:
             return
         self.strategy.on_partially_filled_order(position, order, price, quantity, multiplier)
-        self._notify_kakao("on_fill", position, order, price, quantity, multiplier, partial=True)
+        self._notify_kakao("on_fill", position, order, price, quantity, multiplier, partial=True)  # 카카오: 부분 체결 알림
 
     @event_method
     def _on_filled_order(self, position, order, price, quantity, multiplier):
@@ -1800,7 +1803,7 @@ class StrategyExecutor(Thread):
             return
 
         self.strategy.on_filled_order(position, order, price, quantity, multiplier)
-        self._notify_kakao("on_fill", position, order, price, quantity, multiplier)
+        self._notify_kakao("on_fill", position, order, price, quantity, multiplier)  # 카카오: 체결 알림
 
         # PERF: In backtesting we never send Discord notifications (`Strategy.send_discord_message`
         # hard-returns), but building the formatted message is still non-trivial work and can
